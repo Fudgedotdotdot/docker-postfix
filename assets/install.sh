@@ -68,6 +68,34 @@ if [[ -n "$(find /etc/postfix/certs -iname *.crt)" && -n "$(find /etc/postfix/ce
   postconf -P "submission/inet/smtpd_recipient_restrictions=permit_sasl_authenticated,reject_unauth_destination"
 fi
 
+########################
+# Enable client side TLS
+########################
+if [[ "$use_tls" -eq 1 ]]; then
+  # /etc/postfix/main.cf
+  postconf -e smtp_tls_security_level=may
+  postconf -e smtp_tls_loglevel=1
+  postconf -e smtp_tls_note_starttls_offer=yes
+  postconf -e smtp_tls_session_cache_database=btree:\${data_directory}/smtp_scache
+fi
+
+############################
+# Blackhole every email addr
+############################
+if [[ "$blackhole" -eq 1 ]]; then
+  # /etc/postfix/main.cf
+  postconf -e "virtual_alias_domains = projshare.io"
+  # configure email addr redirection
+  echo "@"$maildomain"    null@localhost" > /etc/postfix/virtual
+  postmap /etc/postfix/virtual
+  postconf -e virtual_alias_maps='hash:/etc/postfix/virtual'
+  # configure email discard after redirection
+  echo "null@localhost   discard:" > /etc/postfix/transport
+  postmap /etc/postfix/transport
+  postconf -e "transport_maps = hash:/etc/postfix/transport"
+  postfix reload
+fi
+
 #############
 #  opendkim
 #############
